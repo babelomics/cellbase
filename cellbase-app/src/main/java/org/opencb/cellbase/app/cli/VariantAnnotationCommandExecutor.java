@@ -36,11 +36,11 @@ import org.opencb.biodata.formats.variant.annotation.io.VepFormatWriter;
 import org.opencb.biodata.formats.variant.io.JsonVariantReader;
 import org.opencb.biodata.formats.variant.vcf4.FullVcfCodec;
 import org.opencb.biodata.models.variant.Variant;
-import org.opencb.biodata.tools.variant.VariantNormalizer;
 import org.opencb.biodata.models.variant.avro.VariantAnnotation;
 import org.opencb.biodata.models.variant.avro.VariantAvro;
 import org.opencb.biodata.models.variant.exceptions.NonStandardCompliantSampleField;
 import org.opencb.biodata.tools.sequence.FastaIndexManager;
+import org.opencb.biodata.tools.variant.VariantNormalizer;
 import org.opencb.biodata.tools.variant.converters.avro.VariantContextToVariantConverter;
 import org.opencb.cellbase.app.cli.variant.annotation.*;
 import org.opencb.cellbase.client.config.ClientConfiguration;
@@ -92,6 +92,7 @@ public class VariantAnnotationCommandExecutor extends CommandExecutor {
     private boolean benchmark;
     private Path referenceFasta;
     private boolean normalize;
+    private boolean decompose;
     private List<String> chromosomeList;
     private int port;
     private String species;
@@ -379,20 +380,33 @@ public class VariantAnnotationCommandExecutor extends CommandExecutor {
                         VCFHeader header = (VCFHeader) codec.readActualHeader(lineIterator);
                         VCFHeaderVersion headerVersion = codec.getVCFHeaderVersion();
                         variantAnnotatorTaskList.add(new VcfStringAnnotatorTask(header, headerVersion,
-                                variantAnnotatorList, sharedContext, normalize));
+                                variantAnnotatorList, sharedContext, normalize, getNormalizerConfig()));
                     } catch (IOException e) {
                         throw new IOException("Unable to read VCFHeader");
                     }
                     break;
                 case JSON:
                     logger.info("Using a JSON parser to read variants...");
-                    variantAnnotatorTaskList.add(new JsonStringAnnotatorTask(variantAnnotatorList, normalize));
+                    variantAnnotatorTaskList.add(new JsonStringAnnotatorTask(variantAnnotatorList, normalize,
+                            getNormalizerConfig()));
                     break;
                 default:
                     break;
             }
         }
         return variantAnnotatorTaskList;
+    }
+
+    private VariantNormalizer.VariantNormalizerConfig getNormalizerConfig() throws FileNotFoundException {
+        VariantNormalizer.VariantNormalizerConfig variantNormalizerConfig = (new VariantNormalizer.VariantNormalizerConfig())
+                .setReuseVariants(true)
+                .setNormalizeAlleles(false)
+                .setDecomposeMNVs(decompose);
+
+        if (referenceFasta != null) {
+            return variantNormalizerConfig.enableLeftAlign(referenceFasta.toString());
+        }
+        return variantNormalizerConfig;
     }
 
     private List<ParallelTaskRunner.TaskWithException<Variant, Variant, Exception>> getVariantTaskList()
@@ -601,12 +615,18 @@ public class VariantAnnotationCommandExecutor extends CommandExecutor {
             Iterator<VariantContext> iterator = vcfFileReader.iterator();
             VariantContextToVariantConverter converter = new VariantContextToVariantConverter("", "",
                     vcfFileReader.getFileHeader().getSampleNamesInOrder());
-            VariantNormalizer normalizer = new VariantNormalizer(true, false, true);
+            // Currently, only VCF files are supported for custom-annotation so makes no sense to allow no normalisation
+            // of variants.
+            // However, decomposition of MNVs/Block substitutions can still be optional
+//            VariantNormalizer normalizer = new VariantNormalizer(true, false, decompose);
+            VariantNormalizer normalizer = new VariantNormalizer(getNormalizerConfig());
             lineCounter = 0;
             while (iterator.hasNext()) {
                 variantContext = iterator.next();
                 // Reference positions will not be indexed
                 if (variantContext.getAlternateAlleles().size() > 0) {
+                    // Currently, only VCF files are supported for custom-annotation so makes no sense to allow no normalisation
+                    // of variants.
                     List<Variant> variantList = normalizer.normalize(converter.apply(Collections.singletonList(variantContext)), true);
                     for (Variant variant : variantList) {
                         db.put((variant.getChromosome() + "_" + variant.getStart() + "_" + variant.getReference() + "_"
@@ -694,11 +714,20 @@ public class VariantAnnotationCommandExecutor extends CommandExecutor {
 
     private void checkParameters() throws IOException {
 
+        // Get reference genome
+        if (org.apache.commons.lang.StringUtils.isNotBlank(variantAnnotationCommandOptions.referenceFasta)) {
+            referenceFasta = Paths.get(variantAnnotationCommandOptions.referenceFasta);
+            FileUtils.checkFile(referenceFasta);
+        }
+
         // Run benchmark
         benchmark = variantAnnotationCommandOptions.benchmark;
         if (benchmark) {
-            referenceFasta = Paths.get(variantAnnotationCommandOptions.referenceFasta);
-            FileUtils.checkFile(referenceFasta);
+            if (referenceFasta == null) {
+                throw new ParameterException("Reference genome must be provided for running the benchmark. Please, "
+                        + "provide a valid path to a fasta file with the reference genome sequence by using the "
+                        + "--reference-fasta parameter.");
+            }
         }
 
 
@@ -739,6 +768,8 @@ public class VariantAnnotationCommandExecutor extends CommandExecutor {
         } else {
             normalize = false;
         }
+
+        decompose = !variantAnnotationCommandOptions.skipDecompose;
 
         // output file
         if (variantAnnotationCommandOptions.output != null) {

@@ -378,18 +378,30 @@ public class CliOptionsParser {
                 required = false, arity = 0)
         public boolean benchmark;
 
-        @Parameter(names = {"--reference-fasta"}, description = "To use only with the --benchmark flag. Full path to a "
-                + " fasta file containing the reference genome.",
+        @Parameter(names = {"--reference-fasta"}, description = "Enables left-alignment normalisation: set this parameter"
+                + " to the full path to a fasta (not fasta.gz!) file containing the reference sequence if you want to enable"
+                + " lef-alignment during the normalisation process. If not set (default), left-alignment step will be skipped"
+                + " during normalisation. **NOTE**: this parameter is mandatory if the --benchmark flag is enabled (in "
+                + " this case fasta.gz files are allowed)",
                 required = false, arity = 1)
         public String referenceFasta;
 
-        @Parameter(names = {"--skip-normalize"}, description = "Skip normalization of input variants. Normalization"
-                + " includes splitting multi-allele positions read from a VCF, allele trimming and decomposing MNVs. Has"
+        @Parameter(names = {"--skip-normalize"}, description = "Skip normalization of input variants. Should not be used"
+                + " when the input (-i, --input-file) is a VCF file. Normalization includes splitting multi-allele positions "
+                + "read from a VCF, allele trimming and decomposing MNVs. Has"
                 + " no effect if reading variants from a CellBase variation collection "
                 + "(\"--input-variation-collection\") or running a variant annotation benchmark (\"--benchmark\"): in"
                 + " these two cases variant normalization is never carried out.",
                 required = false, arity = 0)
-        public boolean skipNormalize;
+        public boolean skipNormalize = false;
+
+        @Parameter(names = {"--skip-decompose"}, description = "Use this flag to avoid decomposition of "
+                + "multi-nucleotide-variants (MNVs) / block substitutions as part of the normalization process. If this"
+                + " flag is NOT activated, as a step during the normalization process reference and alternate alleles"
+                + " from MNVs/Block substitutions will be aligned and decomposed into their forming simple variants. "
+                + " This flag has no effect if --skip-normalize is present.",
+                required = false, arity = 0)
+        public boolean skipDecompose = false;
 
         @Parameter(names = {"--server-cache"}, description = "Use of this parameter is discouraged unless the "
                 + "server administrator advises so. Annotation was already pre-calculated and cached in "
