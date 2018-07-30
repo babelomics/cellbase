@@ -1,6 +1,7 @@
 package org.opencb.cellbase.lib.impl;
 
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -19,8 +20,10 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static junit.framework.TestCase.assertNotNull;
@@ -42,6 +45,9 @@ public class ClinicalMongoDBAdaptorTest extends GenericMongoDBAdaptorTest {
         Path path = Paths.get(getClass()
                 .getResource("/clinical_variants.full.test.json.gz").toURI());
         loadRunner.load(path, "clinical_variants");
+        Path pathDiseases = Paths.get(getClass()
+                .getResource("/diseases.test.json.gz").toURI());
+        loadRunner.load(pathDiseases, "diseases");
     }
 
     @Test
@@ -118,6 +124,15 @@ public class ClinicalMongoDBAdaptorTest extends GenericMongoDBAdaptorTest {
                         .collect(Collectors.toList()),
                 CoreMatchers.hasItem("FMN2"));
 
+        // Look for a variant that matches the exact name of a disease
+        Query query10 = new Query();
+        query10.put(ClinicalDBAdaptor.QueryParams.SOURCE.key(),"clinvar");
+        query10.put(ClinicalDBAdaptor.QueryParams.TRAIT_EXACT_MATCH.key(),"hypercholesterolemia and hypertriglyceridemia, type iii");
+        QueryOptions options10 = new QueryOptions();
+        QueryResult queryResult10 = clinicalDBAdaptor.nativeGet(query10, options10);
+        assertEquals(1, queryResult10.getNumResults());
+
+
     }
 
     private boolean containsAccession(QueryResult<Variant> queryResult1, String accession) {
@@ -141,4 +156,44 @@ public class ClinicalMongoDBAdaptorTest extends GenericMongoDBAdaptorTest {
         return found;
     }
 
+    @Test
+    public void getDiseases() throws Exception {
+        ClinicalDBAdaptor clinicalDBAdaptor = dbAdaptorFactory.getClinicalDBAdaptor("hsapiens", "GRCh37");
+
+        // Get all diseases
+        Query query = new Query();
+        QueryOptions queryOptions = new QueryOptions();
+        QueryResult queryResult = clinicalDBAdaptor.getDiseases(query,queryOptions);
+        assertEquals(7, queryResult.getNumResults());
+
+        // Get diseases checks trait
+        Query query2 = new Query();
+        query2.put(ClinicalDBAdaptor.QueryParams.SOURCE.key(), "clinvar");
+        query2.put(ClinicalDBAdaptor.QueryParams.TRAIT.key(), "disease");
+        QueryOptions queryOptions2 = new QueryOptions();
+        QueryResult queryResult2 = clinicalDBAdaptor.getDiseases(query2,queryOptions2);
+        assertEquals(2, queryResult2.getNumResults());
+
+        Iterator itr = queryResult2.getResult().iterator();
+        System.out.println("Test: getDiseases() checks trait 'disease':");
+        while (itr.hasNext()) {
+            Object element = itr.next();
+            System.out.println("\t" + element);
+        }
+
+        // Get diseases checks trait with pattern
+        Query query3 = new Query();
+        query3.put(ClinicalDBAdaptor.QueryParams.SOURCE.key(), "clinvar");
+        query3.put(ClinicalDBAdaptor.QueryParams.TRAIT.key(), "hypertriglyceridemia[a-z, ]*type iii");
+        QueryOptions queryOptions3 = new QueryOptions();
+        QueryResult queryResult3 = clinicalDBAdaptor.getDiseases(query3,queryOptions3);
+        assertEquals(1, queryResult3.getNumResults());
+
+        itr = queryResult3.getResult().iterator();
+        System.out.println("Test: getDiseases() checks trait and heritable_trait:");
+        while (itr.hasNext()) {
+            Object element = itr.next();
+            System.out.println("\t" + element);
+        }
+    }
 }

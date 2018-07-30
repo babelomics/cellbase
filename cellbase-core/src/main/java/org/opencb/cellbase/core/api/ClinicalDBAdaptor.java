@@ -42,6 +42,7 @@ public interface ClinicalDBAdaptor<T> extends FeatureDBAdaptor<T> {
         REFERENCE("reference", STRING, ""),
         ALTERNATE("alternate", STRING, ""),
         TRAIT("trait", TEXT_ARRAY, ""),
+        TRAIT_EXACT_MATCH("traitExactMatch", STRING, ""),
         FEATURE("feature", TEXT_ARRAY, ""),
         SO("so", TEXT_ARRAY, ""),
         SOURCE("source", TEXT_ARRAY, ""),
@@ -107,6 +108,14 @@ public interface ClinicalDBAdaptor<T> extends FeatureDBAdaptor<T> {
     QueryResult<String> getConsistencyLabels();
 
     QueryResult<String> getVariantTypes();
+
+    /**
+     * List diseases obtained from its association to a variant.
+     * @param query Options specific for example source.
+     * @param queryOptions Options generics.
+     * @return List name diseases distinct.
+     */
+    QueryResult getDiseases(Query query, QueryOptions queryOptions);
 
 //    List<QueryResult> getAllByGenomicVariantList(List<Variant> variantList, QueryOptions options);
 

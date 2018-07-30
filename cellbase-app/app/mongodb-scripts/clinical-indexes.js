@@ -28,6 +28,10 @@ db.getCollection('clinical_variants').createIndex({'annotation.traitAssociation.
 db.getCollection('clinical_variants').createIndex({'annotation.traitAssociation.heritableTraits.inheritanceMode': 1}, {sparse: true})
 db.getCollection('clinical_variants').createIndex({'annotation.traitAssociation.alleleOrigin': 1}, {sparse: true})
 db.getCollection('clinical_variants').createIndex({'_traits': 1})
+db.getCollection('clinical_variants').createIndex({'annotation.traitAssociation.heritableTraits.trait': 1}, {sparse: true})
+
+// Create collection diseases
+db.getCollection('clinical_variants').aggregate([{$unwind:"$annotation.traitAssociation"},{$unwind:"$annotation.traitAssociation.heritableTraits"},{$group:{"_id": {"trait":"$annotation.traitAssociation.heritableTraits.trait","source":"$annotation.traitAssociation.source.name"},}},{$out:"diseases"}])
 
 //db.getCollection('clinical_variants').createIndex({'annotation.traitAssociation.heritableTraits.trait':'text',
 //    'annotation.traitAssociation.somaticInformation.primarySite': 'text',

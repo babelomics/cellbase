@@ -326,6 +326,9 @@ public class MongoDBCellBaseLoader extends CellBaseLoader {
             case "repeats":
                 collection = "repeats";
                 break;
+            case "diseases":
+                collection = "diseases";
+                break;
             default:
                 throw new LoaderException("Unknown data to load: '" + data + "'");
         }

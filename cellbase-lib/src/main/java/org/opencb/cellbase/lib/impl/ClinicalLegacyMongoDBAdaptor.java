@@ -349,6 +349,18 @@ public class ClinicalLegacyMongoDBAdaptor extends MongoDBAdaptor implements Clin
         return null;
     }
 
+    /**
+     * List diseases obtained from its association to a variant.
+     * @param query Options specific for example source.
+     * @param queryOptions Options generics.
+     * @return List name diseases distinct.
+     */
+    @Override
+    public QueryResult getDiseases(Query query, QueryOptions queryOptions) {
+        return null;
+    }
+
+
 //    @Override
 //    public List<QueryResult> getAllByGenomicVariantList(List<Variant> variantList, QueryOptions options) {
 //        List<Document> queries = new ArrayList<>();

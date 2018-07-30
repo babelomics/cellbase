@@ -11,10 +11,12 @@ import org.opencb.cellbase.core.api.ClinicalDBAdaptor;
 import org.opencb.commons.datastore.core.Query;
 import org.opencb.commons.datastore.core.QueryOptions;
 import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.datastore.mongodb.MongoDBCollection;
 import org.opencb.commons.datastore.mongodb.MongoDataStore;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -26,9 +28,12 @@ public class ClinicalMongoDBAdaptor extends MongoDBAdaptor implements ClinicalDB
     private static final String PRIVATE_CLINICAL_FIELDS = "_featureXrefs,_traits";
     private static final String SEPARATOR = ",";
 
+    private MongoDBCollection mongoDBDiseasesCollection;
+
     public ClinicalMongoDBAdaptor(String species, String assembly, MongoDataStore mongoDataStore) {
         super(species, assembly, mongoDataStore);
         mongoDBCollection = mongoDataStore.getCollection("clinical_variants");
+        mongoDBDiseasesCollection = mongoDataStore.getCollection("diseases");
 
         logger.debug("ClinicalMongoDBAdaptor: in 'constructor'");
     }
@@ -193,6 +198,13 @@ public class ClinicalMongoDBAdaptor extends MongoDBAdaptor implements ClinicalDB
                 "annotation.traitAssociation.alleleOrigin", andBsonList);
 
         createTraitQuery(query.getString(QueryParams.TRAIT.key()), andBsonList);
+
+        if (query.containsKey(QueryParams.TRAIT_EXACT_MATCH.key())) {
+            List<String> listTraitExactMatch = new ArrayList<>();
+            listTraitExactMatch.add(query.getString(QueryParams.TRAIT_EXACT_MATCH.key()));
+            createOrQuery(listTraitExactMatch,
+                "annotation.traitAssociation.heritableTraits.trait", andBsonList);
+        }
 
         if (andBsonList.size() > 0) {
             return Filters.and(andBsonList);
@@ -529,4 +541,36 @@ public class ClinicalMongoDBAdaptor extends MongoDBAdaptor implements ClinicalDB
     }
 
 
+    /**
+     * List diseases obtained from its association to a variant.
+     * @param query Options specific for example source.
+     * @param queryOptions Options generics.
+     * @return List name diseases distinct.
+     */
+    public QueryResult getDiseases(Query query, QueryOptions queryOptions) {
+        QueryOptions parsedOptions = parseQueryOptions(queryOptions, query);
+        parsedOptions = addPrivateExcludeOptions(parsedOptions, PRIVATE_CLINICAL_FIELDS);
+
+        // Remove _id from exclude
+        String exclude = parsedOptions.getString("exclude");
+        parsedOptions.put("exclude", exclude.replaceFirst("_id,", ""));
+
+        Bson bson = new Document();
+        List<Bson> andBsonList = new ArrayList<>();
+        createOrQuery(query, QueryParams.SOURCE.key(), "_id.source", andBsonList);
+        if (query.containsKey(QueryParams.TRAIT.key())) {
+            Bson regex = Filters.regex("_id.trait",
+                    Pattern.compile("\\w*" + query.getString(QueryParams.TRAIT.key()) + "\\w*", Pattern.CASE_INSENSITIVE));
+            andBsonList.add(regex);
+        }
+
+        if (andBsonList.size() > 0) {
+            bson = Filters.and(andBsonList);
+        }
+
+        logger.debug("query: {}", bson.toBsonDocument(Document.class, MongoClient.getDefaultCodecRegistry()).toJson());
+        logger.debug("queryOptions: {}", parsedOptions.toJson());
+
+        return mongoDBDiseasesCollection.find(bson, parsedOptions);
+    }
 }

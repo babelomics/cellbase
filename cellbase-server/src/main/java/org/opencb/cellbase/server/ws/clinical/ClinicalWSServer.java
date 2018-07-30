@@ -66,6 +66,10 @@ public class ClinicalWSServer extends GenericRestWSServer {
                             + " will be returned, e.g: carcinoma,lung or acute,myeloid,leukaemia. WARNING: returned "
                             + " numTotalResults will always be -1 when searching by trait keywords.",
                     required = false, dataType = "String", paramType = "query"),
+            @ApiImplicitParam(name = "traitExactMatch",
+                    value = "Exact words to search. Exact name of the disease required."
+                            + " All related variants that exactly contain this disease will be returned.",
+                    required = false, dataType = "String", paramType = "query"),
             @ApiImplicitParam(name = "accession",
                     value = "Comma separated list of database accesions, e.g.: RCV000033215,COSM306824 Exact text "
                             + "matches will be returned.",
@@ -184,4 +188,31 @@ public class ClinicalWSServer extends GenericRestWSServer {
         }
     }
 
+    @GET
+    @Path("/variant/diseases")
+    @ApiOperation(httpMethod = "GET", notes = "",
+            value = "Retrieves all available disease associated with the variants", response = Variant.class,
+            responseContainer = "QueryResponse")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "source",
+                    value = "Database sources of the documents to be returned. E.g:"
+                            + " clinvar.",
+                    required = false, dataType = "java.util.List", paramType = "query"),
+            @ApiImplicitParam(name = "trait",
+                    value = "Keywords search. Pattern describing required disease."
+                            + " All disease associated with variants and related this keyword (case insensitive) "
+                            + " will be returned, e.g: anosmia,pulmonary or pattern as 'hypertri[a-z, ]* infa'. WARNING: returned "
+                            + " numTotalResults will always be -1 when searching by trait keywords.",
+                    required = false, dataType = "String", paramType = "query"),
+    })
+    public Response getVariantDisease() {
+        try {
+            ClinicalDBAdaptor clinicalDBAdaptor = dbAdaptorFactory.getClinicalDBAdaptor(this.species, this.assembly);
+            parseQueryParams();
+
+            return createOkResponse(clinicalDBAdaptor.getDiseases(query, queryOptions));
+        } catch (Exception e) {
+            return createErrorResponse(e);
+        }
+    }
 }
